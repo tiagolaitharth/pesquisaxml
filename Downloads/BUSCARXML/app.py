@@ -1,59 +1,79 @@
 import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
+import os
 
-# Função para extrair dados do XML
-def parse_xml(file):
-    try:
-        tree = ET.parse(file)
-        root = tree.getroot()
+# Função para buscar os dados de cada XML
+def buscar_dados_xml(xml_file):
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+
+    # Busca os dados nas tags específicas
+    numero_pedido = root.find('.//infAdic/infCpl').text if root.find('.//infAdic/infCpl') is not None else 'N/A'
+    numero_nf = root.find('.//cobr/fat/nFat').text if root.find('.//cobr/fat/nFat') is not None else 'N/A'
+    volumes = root.find('.//vol/qVol').text if root.find('.//vol/qVol') is not None else 'N/A'
+    transportadora = root.find('.//transp/xNome').text if root.find('.//transp/xNome') is not None else 'N/A'
+
+    # Retorna os dados encontrados em um dicionário
+    return {
+        'numero_pedido': numero_pedido,
+        'numero_nf': numero_nf,
+        'volumes': volumes,
+        'transportadora': transportadora
+    }
+
+# Função para exibir os resultados
+def exibir_resultados(resultados):
+    for resultado in resultados:
+        st.write(f"**Número do Pedido:** {resultado['numero_pedido']}")
+        st.write(f"**Número da NF:** {resultado['numero_nf']}")
+        st.write(f"**Volumes:** {resultado['volumes']}")
+        st.write(f"**Transportadora:** {resultado['transportadora']}")
+        st.write("---")
+
+# Função para salvar os resultados em CSV
+def salvar_em_csv(dados):
+    df = pd.DataFrame(dados)
+    df.to_csv('resultados.csv', index=False)
+
+# Função principal para execução do Streamlit
+def main():
+    st.title("Leitor de Arquivos XML")
+    
+    # Selecione o diretório com arquivos XML
+    pasta = st.text_input("Digite o caminho da pasta com arquivos XML:")
+    
+    if pasta and os.path.isdir(pasta):
+        # Mostra os arquivos XML na pasta
+        arquivos = [f for f in os.listdir(pasta) if f.endswith('.xml')]
         
-        nf_data = {
-            "Numero NF": root.findtext('NotaFiscal/Numero', default='N/A'),
-            "Numero Pedido": root.findtext('Pedido/Numero', default='N/A'),
-            "Volumes": root.findtext('NotaFiscal/Volumes', default='N/A'),
-            "Transportadora": root.findtext('Transportadora/Nome', default='N/A')
-        }
-        return nf_data
-    except Exception as e:
-        return {"Error": str(e)}
-
-# Configuração do Streamlit
-st.title("Sistema de Leitura de XML")
-
-# Upload de arquivos XML
-uploaded_files = st.file_uploader(
-    "Faça o upload de arquivos XML (vários arquivos podem ser selecionados)", 
-    accept_multiple_files=True, 
-    type="xml"
-)
-
-# Campo para digitar o número de pedidos
-pedido_input = st.text_area("Digite os números dos pedidos, separados por linha:")
-pedido_list = pedido_input.split("\n") if pedido_input else []
-
-# Botão para processar os arquivos
-if st.button("Processar XMLs"):
-    if not uploaded_files:
-        st.warning("Por favor, faça o upload de pelo menos um arquivo XML.")
-    else:
-        data = []
-        for file in uploaded_files:
-            xml_data = parse_xml(file)
-            if xml_data.get("Numero Pedido") in pedido_list or not pedido_list:
-                xml_data["Arquivo"] = file.name
-                data.append(xml_data)
-        
-        if data:
-            df = pd.DataFrame(data)
-            st.write("Resultados encontrados:")
-            st.dataframe(df)
-
-            # Botão para salvar os resultados em CSV
-            if st.button("Salvar lista em CSV"):
-                csv_file = "resultado.csv"
-                df.to_csv(csv_file, index=False)
-                st.success(f"Arquivo CSV salvo como: {csv_file}")
-                st.download_button("Baixar CSV", data=df.to_csv(index=False), file_name=csv_file)
+        if arquivos:
+            st.write(f"Arquivos XML encontrados: {', '.join(arquivos)}")
+            
+            # Campo para buscar pedidos ou NF
+            busca = st.text_input("Digite o número do pedido ou NF para buscar:")
+            
+            resultados = []
+            
+            for arquivo in arquivos:
+                if busca in arquivo:
+                    xml_file = os.path.join(pasta, arquivo)
+                    dados = buscar_dados_xml(xml_file)
+                    resultados.append(dados)
+                    
+            if resultados:
+                exibir_resultados(resultados)
+                
+                # Botão para salvar os resultados em CSV
+                if st.button("Salvar em CSV"):
+                    salvar_em_csv(resultados)
+                    st.success("Resultados salvos em 'resultados.csv'.")
+            else:
+                st.warning("Nenhum arquivo encontrado com o número de pedido ou NF informado.")
         else:
-            st.warning("Nenhuma informação correspondente foi encontrada.")
+            st.warning("Não há arquivos XML na pasta.")
+    else:
+        st.warning("Digite o caminho de uma pasta válida com arquivos XML.")
+
+if __name__ == "__main__":
+    main()
