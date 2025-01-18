@@ -8,13 +8,12 @@ def buscar_dados_xml(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
 
-    # Busca os dados nas tags específicas
     numero_pedido = root.find('.//infAdic/infCpl').text if root.find('.//infAdic/infCpl') is not None else 'N/A'
     numero_nf = root.find('.//cobr/fat/nFat').text if root.find('.//cobr/fat/nFat') is not None else 'N/A'
     volumes = root.find('.//vol/qVol').text if root.find('.//vol/qVol') is not None else 'N/A'
     transportadora = root.find('.//transp/xNome').text if root.find('.//transp/xNome') is not None else 'N/A'
 
-    # Retorna os dados encontrados em um dicionário
+    
     return {
         'numero_pedido': numero_pedido,
         'numero_nf': numero_nf,
