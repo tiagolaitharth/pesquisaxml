@@ -2,7 +2,6 @@ import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
 import os
-from tkinter import Tk, filedialog
 
 # Função para buscar os dados de cada XML
 def buscar_dados_xml(xml_file):
@@ -35,62 +34,32 @@ def salvar_em_csv(dados):
     df = pd.DataFrame(dados)
     df.to_csv('resultados.csv', index=False)
 
-# Função para selecionar a pasta usando tkinter
-def selecionar_pasta():
-    root = Tk()
-    root.withdraw()  # Ocultar a janela principal do Tkinter
-    pasta_selecionada = filedialog.askdirectory()
-    root.destroy()
-    return pasta_selecionada
-
 # Função principal para execução do Streamlit
 def main():
     st.title("Leitor de Arquivos XML")
 
-    if st.button("Selecionar Pasta com XMLs"):
-        pasta = selecionar_pasta()
-        st.session_state['pasta'] = pasta
+    # Opção para o usuário fazer upload dos arquivos XML
+    uploaded_files = st.file_uploader("Selecione os arquivos XML", type="xml", accept_multiple_files=True)
 
-    # Exibe o caminho da pasta selecionada
-    if 'pasta' in st.session_state and st.session_state['pasta']:
-        pasta = st.session_state['pasta']
-        st.write(f"Pasta selecionada: {pasta}")
+    if uploaded_files:
+        resultados = []
 
-        if os.path.isdir(pasta):
-            # Mostra os arquivos XML na pasta
-            arquivos = [f for f in os.listdir(pasta) if f.endswith('.xml')]
+        # Processando cada arquivo XML
+        for uploaded_file in uploaded_files:
+            dados = buscar_dados_xml(uploaded_file)
+            resultados.append(dados)
 
-            if arquivos:
-                st.write(f"Arquivos XML encontrados: {', '.join(arquivos)}")
+        if resultados:
+            exibir_resultados(resultados)
 
-                # Campo para buscar pedidos ou NF
-                busca = st.text_input("Digite o número do pedido ou NF para buscar:")
-
-                resultados = []
-
-                for arquivo in arquivos:
-                    xml_file = os.path.join(pasta, arquivo)
-                    dados = buscar_dados_xml(xml_file)
-
-                    # Filtra os resultados com base na busca
-                    if busca in dados['numero_pedido'] or busca in dados['numero_nf']:
-                        resultados.append(dados)
-
-                if resultados:
-                    exibir_resultados(resultados)
-
-                    # Botão para salvar os resultados em CSV
-                    if st.button("Salvar em CSV"):
-                        salvar_em_csv(resultados)
-                        st.success("Resultados salvos em 'resultados.csv'.")
-                else:
-                    st.warning("Nenhum arquivo encontrado com o número de pedido ou NF informado.")
-            else:
-                st.warning("Não há arquivos XML na pasta.")
+            # Botão para salvar os resultados em CSV
+            if st.button("Salvar em CSV"):
+                salvar_em_csv(resultados)
+                st.success("Resultados salvos em 'resultados.csv'.")
         else:
-            st.warning("Selecione uma pasta válida contendo arquivos XML.")
+            st.warning("Nenhum arquivo XML carregado ou os dados não puderam ser extraídos.")
     else:
-        st.info("Clique no botão acima para selecionar uma pasta contendo arquivos XML.")
+        st.info("Selecione arquivos XML para iniciar o processo.")
 
 if __name__ == "__main__":
     main()
