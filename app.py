@@ -1,90 +1,73 @@
+import streamlit as st
 import os
 import xml.etree.ElementTree as ET
 import pandas as pd
-import streamlit as st
-import io
 
-def carregar_arquivos():
-    # Selecione os arquivos XML via upload no Streamlit
-    arquivos_xml = st.file_uploader("Carregue os arquivos XML", type=["xml"], accept_multiple_files=True)
+# Função para ler os arquivos XML e extrair as informações
+def processar_arquivos_xml(arquivos, num_pedidos):
+    dados = []
+    for arquivo in arquivos:
+        if arquivo.name.endswith(".xml"):
+            try:
+                tree = ET.parse(arquivo)
+                root = tree.getroot()
 
-    if not arquivos_xml:
-        st.warning("Por favor, faça o upload dos arquivos XML.")
-        return None
+                # Extraindo os dados necessários (exemplo, adapte conforme a estrutura do XML)
+                for pedido in root.findall('.//det'):
+                    numero_nf = pedido.find('.//nNF').text  # Ajuste para o seu XML
+                    numero_pedido = pedido.find('.//nPedido').text  # Ajuste para o seu XML
+                    transportadora = pedido.find('.//transportadora').text  # Ajuste para o seu XML
+                    volumes = pedido.find('.//volumes').text  # Ajuste para o seu XML
 
-    return arquivos_xml
-
-def buscar_nfs_por_pedido(arquivos_xml, pedidos):
-    nfs = []
+                    if num_pedidos in numero_nf or num_pedidos in numero_pedido:
+                        dados.append({
+                            "Número da NF": numero_nf,
+                            "Número do Pedido": numero_pedido,
+                            "Transportadora": transportadora,
+                            "Volumes": volumes,
+                        })
+            except ET.ParseError:
+                st.error(f"Erro ao processar o arquivo {arquivo.name}")
     
-    # Percorre cada arquivo XML carregado
-    for arquivo in arquivos_xml:
-        try:
-            tree = ET.parse(arquivo)
-            root = tree.getroot()
-            
-            # Extrair informações necessárias
-            nf = root.find(".//NFe/infNFe/ide/nNF").text  # Número da NF
-            pedido = root.find(".//NFe/infNFe/ide/nPedido").text  # Número do Pedido
-            transportadora = root.find(".//NFe/infNFe/transp/xNome").text  # Nome da Transportadora
-            volumes = int(root.find(".//NFe/infNFe/transp/vol/quantidade").text)  # Volume
+    return dados
 
-            # Verifica se o número do pedido corresponde ao que foi buscado
-            if pedido in pedidos:
-                nfs.append({
-                    "NF": nf,
-                    "Pedido": pedido,
-                    "Transportadora": transportadora,
-                    "Volumes": volumes
-                })
-        except Exception as e:
-            st.warning(f"Erro ao processar o arquivo {arquivo.name}: {e}")
-    
-    return nfs
+# Função para salvar a tabela como CSV
+def salvar_como_csv(dados):
+    df = pd.DataFrame(dados)
+    csv = df.to_csv(index=False)
+    return csv
 
-def exibir_tabela(nfs):
-    if nfs:
-        df = pd.DataFrame(nfs)
+# Interface do Streamlit
+st.title("Busca de Informações de NFs e Pedidos")
+st.write("Escolha os arquivos XML.")
 
-        # Calcula o total de volumes e de NFs
-        total_volumes = df["Volumes"].sum()
-        total_nfs = df.shape[0]
+# Seletor de arquivos XML
+arquivos = st.file_uploader("Selecione os arquivos XML", type=["xml"], accept_multiple_files=True)
 
-        # Exibe a tabela e os totais
-        st.write(df)
-        st.write(f"**Total de Volumes**: {total_volumes}")
-        st.write(f"**Total de NFs**: {total_nfs}")
+# Campo de entrada para o número do pedido ou NF
+num_pedidos = st.text_input("Digite os números dos pedidos ou NFs separados por espaço")
 
-        # Botão para download da tabela em CSV
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="Baixar Tabela em CSV",
-            data=csv,
-            file_name="tabela_nfs.csv",
-            mime="text/csv"
-        )
+# Botão para processar os arquivos
+if st.button("Buscar"):
+    if not arquivos or not num_pedidos:
+        st.error("Por favor, selecione os arquivos e digite os números dos pedidos ou NFs.")
     else:
-        st.write("Nenhuma NF encontrada para os pedidos informados.")
-
-def main():
-    # Cabeçalho
-    st.title("Buscador de NFs por Pedido")
-
-    # Seleção de pedidos a serem buscados
-    pedidos_input = st.text_input("Digite os números dos pedidos separados por espaço:")
-    
-    if pedidos_input:
-        pedidos = pedidos_input.split()
+        num_pedidos_lista = num_pedidos.split()
+        dados = []
+        for numero in num_pedidos_lista:
+            dados.extend(processar_arquivos_xml(arquivos, numero))
         
-        # Carregar arquivos XML via upload
-        arquivos_xml = carregar_arquivos()
-
-        if arquivos_xml is not None:
-            # Buscar NFs pelos pedidos fornecidos
-            nfs = buscar_nfs_por_pedido(arquivos_xml, pedidos)
+        if dados:
+            df = pd.DataFrame(dados)
+            st.write(df)
             
-            # Exibir os resultados
-            exibir_tabela(nfs)
-
-if __name__ == "__main__":
-    main()
+            # Botão para baixar a tabela como CSV
+            csv = salvar_como_csv(dados)
+            st.download_button(
+                label="Baixar tabela em CSV",
+                data=csv,
+                file_name="dados_nf_pedido.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("Nenhum dado encontrado para os números fornecidos.")
