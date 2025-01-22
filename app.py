@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
 import xml.etree.ElementTree as ET
 
 # Função para processar o XML e extrair as informações
