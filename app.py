@@ -1,73 +1,64 @@
 import streamlit as st
+import pandas as pd
 import os
 import xml.etree.ElementTree as ET
-import pandas as pd
 
-# Função para ler os arquivos XML e extrair as informações
-def processar_arquivos_xml(arquivos, num_pedidos):
-    dados = []
-    for arquivo in arquivos:
-        if arquivo.name.endswith(".xml"):
-            try:
-                tree = ET.parse(arquivo)
-                root = tree.getroot()
+# Função para processar o XML e extrair as informações
+def processar_xml(uploaded_file):
+    tree = ET.parse(uploaded_file)
+    root = tree.getroot()
 
-                # Extraindo os dados necessários (exemplo, adapte conforme a estrutura do XML)
-                for pedido in root.findall('.//det'):
-                    numero_nf = pedido.find('.//nNF').text  # Ajuste para o seu XML
-                    numero_pedido = pedido.find('.//nPedido').text  # Ajuste para o seu XML
-                    transportadora = pedido.find('.//transportadora').text  # Ajuste para o seu XML
-                    volumes = pedido.find('.//volumes').text  # Ajuste para o seu XML
-
-                    if num_pedidos in numero_nf or num_pedidos in numero_pedido:
-                        dados.append({
-                            "Número da NF": numero_nf,
-                            "Número do Pedido": numero_pedido,
-                            "Transportadora": transportadora,
-                            "Volumes": volumes,
-                        })
-            except ET.ParseError:
-                st.error(f"Erro ao processar o arquivo {arquivo.name}")
+    # Extração dos dados
+    nf_numero = root.find(".//nfeProc//infNFe//ide//nNF").text if root.find(".//nfeProc//infNFe//ide//nNF") else "N/A"
+    transportadora = root.find(".//nfeProc//infNFe//emit//xNome").text if root.find(".//nfeProc//infNFe//emit//xNome") else "N/A"
+    numero_pedido = root.find(".//nfeProc//infNFe//complemento").text if root.find(".//nfeProc//infNFe//complemento") else "N/A"
+    volumes = root.find(".//nfeProc//infNFe//transp//vol//qVol").text if root.find(".//nfeProc//infNFe//transp//vol//qVol") else "0"
     
-    return dados
+    return nf_numero, transportadora, numero_pedido, volumes
 
-# Função para salvar a tabela como CSV
-def salvar_como_csv(dados):
-    df = pd.DataFrame(dados)
-    csv = df.to_csv(index=False)
-    return csv
-
-# Interface do Streamlit
+# Título da aplicação
 st.title("Busca de Informações de NFs e Pedidos")
-st.write("Escolha os arquivos XML.")
 
-# Seletor de arquivos XML
-arquivos = st.file_uploader("Selecione os arquivos XML", type=["xml"], accept_multiple_files=True)
+# Carregar arquivos via upload
+uploaded_files = st.file_uploader("Escolha os arquivos XML", accept_multiple_files=True, type=["xml"])
 
-# Campo de entrada para o número do pedido ou NF
-num_pedidos = st.text_input("Digite os números dos pedidos ou NFs separados por espaço")
+# Verificar se os arquivos foram carregados
+if uploaded_files:
+    # Listas para armazenar as informações
+    nfs = []
+    transportadoras = []
+    pedidos = []
+    volumes = []
 
-# Botão para processar os arquivos
-if st.button("Buscar"):
-    if not arquivos or not num_pedidos:
-        st.error("Por favor, selecione os arquivos e digite os números dos pedidos ou NFs.")
-    else:
-        num_pedidos_lista = num_pedidos.split()
-        dados = []
-        for numero in num_pedidos_lista:
-            dados.extend(processar_arquivos_xml(arquivos, numero))
-        
-        if dados:
-            df = pd.DataFrame(dados)
-            st.write(df)
-            
-            # Botão para baixar a tabela como CSV
-            csv = salvar_como_csv(dados)
-            st.download_button(
-                label="Baixar tabela em CSV",
-                data=csv,
-                file_name="dados_nf_pedido.csv",
-                mime="text/csv"
-            )
-        else:
-            st.warning("Nenhum dado encontrado para os números fornecidos.")
+    # Processar os arquivos XML carregados
+    for uploaded_file in uploaded_files:
+        nf_numero, transportadora, numero_pedido, volume = processar_xml(uploaded_file)
+        nfs.append(nf_numero)
+        transportadoras.append(transportadora)
+        pedidos.append(numero_pedido)
+        volumes.append(volume)
+
+    # Criar um DataFrame para exibir as informações
+    data = {
+        "Número da NF": nfs,
+        "Transportadora": transportadoras,
+        "Número do Pedido": pedidos,
+        "Volume": volumes
+    }
+
+    df = pd.DataFrame(data)
+
+    # Exibir a tabela
+    st.subheader("Informações das Notas Fiscais")
+    st.dataframe(df)
+
+    # Botão para download da tabela em CSV
+    st.download_button(
+        label="Baixar Tabela em CSV",
+        data=df.to_csv(index=False),
+        file_name="notas_fiscais.csv",
+        mime="text/csv"
+    )
+
+else:
+    st.info("Por favor, carregue os arquivos XML para análise.")
